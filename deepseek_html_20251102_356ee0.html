@@ -1,0 +1,557 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Мишень-Шутер</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Arial', sans-serif;
+        }
+        
+        body {
+            background: linear-gradient(135deg, #1a2a6c, #b21f1f, #fdbb2d);
+            color: white;
+            overflow: hidden;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .game-container {
+            display: flex;
+            flex: 1;
+            position: relative;
+        }
+        
+        .game-area {
+            flex: 1;
+            background: rgba(0, 0, 0, 0.7);
+            position: relative;
+            overflow: hidden;
+            cursor: crosshair;
+        }
+        
+        .crosshair {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 40px;
+            height: 40px;
+            pointer-events: none;
+            z-index: 100;
+        }
+        
+        .crosshair::before, .crosshair::after {
+            content: '';
+            position: absolute;
+            background-color: rgba(255, 255, 255, 0.8);
+        }
+        
+        .crosshair::before {
+            width: 40px;
+            height: 2px;
+            top: 50%;
+            left: 0;
+            transform: translateY(-50%);
+        }
+        
+        .crosshair::after {
+            width: 2px;
+            height: 40px;
+            left: 50%;
+            top: 0;
+            transform: translateX(-50%);
+        }
+        
+        .target {
+            position: absolute;
+            border-radius: 50%;
+            transition: transform 0.1s;
+        }
+        
+        .target.hit {
+            animation: hit-animation 0.3s forwards;
+        }
+        
+        @keyframes hit-animation {
+            0% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.5); opacity: 0.5; }
+            100% { transform: scale(0); opacity: 0; }
+        }
+        
+        .shop {
+            width: 300px;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 20px;
+            border-left: 2px solid #ffcc00;
+            overflow-y: auto;
+        }
+        
+        .shop h2 {
+            text-align: center;
+            margin-bottom: 20px;
+            color: #ffcc00;
+            text-shadow: 0 0 5px rgba(255, 204, 0, 0.5);
+        }
+        
+        .weapon-item {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            padding: 15px;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .weapon-item:hover {
+            background: rgba(255, 255, 255, 0.2);
+            transform: translateY(-3px);
+        }
+        
+        .weapon-item.equipped {
+            border: 2px solid #ffcc00;
+            box-shadow: 0 0 10px rgba(255, 204, 0, 0.5);
+        }
+        
+        .weapon-icon {
+            width: 50px;
+            height: 50px;
+            margin-right: 15px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 5px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+        }
+        
+        .weapon-info {
+            flex: 1;
+        }
+        
+        .weapon-name {
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+        
+        .weapon-price {
+            color: #ffcc00;
+            font-size: 14px;
+        }
+        
+        .stats {
+            display: flex;
+            justify-content: space-between;
+            padding: 15px 20px;
+            background: rgba(0, 0, 0, 0.8);
+            border-bottom: 2px solid #ffcc00;
+        }
+        
+        .stat {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        
+        .stat-value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #ffcc00;
+        }
+        
+        .stat-label {
+            font-size: 14px;
+            opacity: 0.8;
+        }
+        
+        .weapon-display {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            align-items: center;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 10px 20px;
+            border-radius: 10px;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+        }
+        
+        .weapon-display-icon {
+            font-size: 30px;
+            margin-right: 10px;
+        }
+        
+        .weapon-display-name {
+            font-size: 18px;
+            font-weight: bold;
+        }
+        
+        .shot-effect {
+            position: absolute;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            pointer-events: none;
+            z-index: 50;
+        }
+        
+        .notification {
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.8);
+            padding: 10px 20px;
+            border-radius: 5px;
+            border: 1px solid #ffcc00;
+            color: #ffcc00;
+            font-weight: bold;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+        
+        .notification.show {
+            opacity: 1;
+        }
+    </style>
+</head>
+<body>
+    <div class="stats">
+        <div class="stat">
+            <div class="stat-value" id="score">0</div>
+            <div class="stat-label">Очки</div>
+        </div>
+        <div class="stat">
+            <div class="stat-value" id="coins">0</div>
+            <div class="stat-label">Монеты</div>
+        </div>
+        <div class="stat">
+            <div class="stat-value" id="targets-hit">0</div>
+            <div class="stat-label">Попадания</div>
+        </div>
+        <div class="stat">
+            <div class="stat-value" id="accuracy">0%</div>
+            <div class="stat-label">Точность</div>
+        </div>
+    </div>
+    
+    <div class="game-container">
+        <div class="game-area" id="gameArea">
+            <div class="crosshair"></div>
+            <div class="weapon-display">
+                <div class="weapon-display-icon">🔫</div>
+                <div class="weapon-display-name">Пистолет</div>
+            </div>
+        </div>
+        
+        <div class="shop">
+            <h2>Магазин оружия</h2>
+            <div class="weapon-item equipped" data-weapon="pistol">
+                <div class="weapon-icon">🔫</div>
+                <div class="weapon-info">
+                    <div class="weapon-name">Пистолет</div>
+                    <div class="weapon-price">Базовое оружие</div>
+                </div>
+            </div>
+            <div class="weapon-item" data-weapon="bow">
+                <div class="weapon-icon">🏹</div>
+                <div class="weapon-info">
+                    <div class="weapon-name">Лук</div>
+                    <div class="weapon-price">50 монет</div>
+                </div>
+            </div>
+            <div class="weapon-item" data-weapon="rifle">
+                <div class="weapon-icon">🔫</div>
+                <div class="weapon-info">
+                    <div class="weapon-name">Винтовка</div>
+                    <div class="weapon-price">100 монет</div>
+                </div>
+            </div>
+            <div class="weapon-item" data-weapon="m4">
+                <div class="weapon-icon">🔫</div>
+                <div class="weapon-info">
+                    <div class="weapon-name">M4</div>
+                    <div class="weapon-price">200 монет</div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="notification" id="notification"></div>
+
+    <script>
+        // Игровые переменные
+        let score = 0;
+        let coins = 0;
+        let targetsHit = 0;
+        let shotsFired = 0;
+        let currentWeapon = 'pistol';
+        let weapons = {
+            pistol: { name: 'Пистолет', price: 0, damage: 1, fireRate: 500, icon: '🔫', owned: true },
+            bow: { name: 'Лук', price: 50, damage: 2, fireRate: 1000, icon: '🏹', owned: false },
+            rifle: { name: 'Винтовка', price: 100, damage: 3, fireRate: 1500, icon: '🔫', owned: false },
+            m4: { name: 'M4', price: 200, damage: 5, fireRate: 300, icon: '🔫', owned: false }
+        };
+        
+        let canShoot = true;
+        let targets = [];
+        let gameArea = document.getElementById('gameArea');
+        let scoreElement = document.getElementById('score');
+        let coinsElement = document.getElementById('coins');
+        let targetsHitElement = document.getElementById('targets-hit');
+        let accuracyElement = document.getElementById('accuracy');
+        let notification = document.getElementById('notification');
+        let weaponDisplay = document.querySelector('.weapon-display');
+        
+        // Инициализация игры
+        function initGame() {
+            // Создание мишеней
+            createTargets();
+            
+            // Обработчик клика для стрельбы
+            gameArea.addEventListener('click', handleShoot);
+            
+            // Обработчики для покупки оружия
+            document.querySelectorAll('.weapon-item').forEach(item => {
+                item.addEventListener('click', () => {
+                    const weaponType = item.getAttribute('data-weapon');
+                    buyWeapon(weaponType);
+                });
+            });
+            
+            // Запуск игрового цикла
+            setInterval(gameLoop, 1000 / 60); // 60 FPS
+        }
+        
+        // Создание мишеней
+        function createTargets() {
+            // Очистка существующих мишеней
+            targets = [];
+            document.querySelectorAll('.target').forEach(target => target.remove());
+            
+            // Создание новых мишеней
+            for (let i = 0; i < 5; i++) {
+                createTarget();
+            }
+        }
+        
+        // Создание одной мишени
+        function createTarget() {
+            const target = document.createElement('div');
+            target.className = 'target';
+            
+            // Случайный размер мишени
+            const size = Math.random() * 50 + 30;
+            target.style.width = `${size}px`;
+            target.style.height = `${size}px`;
+            
+            // Случайный цвет мишени
+            const colors = ['#ff3333', '#33ff33', '#3333ff', '#ffff33', '#ff33ff', '#33ffff'];
+            const color = colors[Math.floor(Math.random() * colors.length)];
+            target.style.backgroundColor = color;
+            
+            // Случайная начальная позиция
+            const x = Math.random() * (gameArea.offsetWidth - size);
+            const y = Math.random() * (gameArea.offsetHeight - size);
+            target.style.left = `${x}px`;
+            target.style.top = `${y}px`;
+            
+            // Случайная скорость движения
+            const speedX = (Math.random() - 0.5) * 4;
+            const speedY = (Math.random() - 0.5) * 4;
+            
+            // Добавление мишени в массив и на игровое поле
+            targets.push({
+                element: target,
+                x: x,
+                y: y,
+                speedX: speedX,
+                speedY: speedY,
+                size: size,
+                health: 1
+            });
+            
+            gameArea.appendChild(target);
+        }
+        
+        // Обработка выстрела
+        function handleShoot(e) {
+            if (!canShoot) return;
+            
+            // Создание эффекта выстрела
+            createShotEffect(e.clientX, e.clientY);
+            
+            // Проверка попадания
+            checkHit(e.clientX, e.clientY);
+            
+            // Обновление статистики
+            shotsFired++;
+            updateStats();
+            
+            // Блокировка стрельбы на время перезарядки
+            canShoot = false;
+            setTimeout(() => {
+                canShoot = true;
+            }, weapons[currentWeapon].fireRate);
+        }
+        
+        // Создание эффекта выстрела
+        function createShotEffect(x, y) {
+            const effect = document.createElement('div');
+            effect.className = 'shot-effect';
+            effect.style.left = `${x - 10}px`;
+            effect.style.top = `${y - 10}px`;
+            effect.style.backgroundColor = '#ffcc00';
+            effect.style.boxShadow = '0 0 10px #ffcc00';
+            
+            gameArea.appendChild(effect);
+            
+            // Удаление эффекта через короткое время
+            setTimeout(() => {
+                effect.remove();
+            }, 100);
+        }
+        
+        // Проверка попадания в мишень
+        function checkHit(x, y) {
+            const rect = gameArea.getBoundingClientRect();
+            const clickX = x - rect.left;
+            const clickY = y - rect.top;
+            
+            for (let i = 0; i < targets.length; i++) {
+                const target = targets[i];
+                const targetRect = target.element.getBoundingClientRect();
+                
+                if (
+                    clickX >= targetRect.left - rect.left &&
+                    clickX <= targetRect.left - rect.left + targetRect.width &&
+                    clickY >= targetRect.top - rect.top &&
+                    clickY <= targetRect.top - rect.top + targetRect.height
+                ) {
+                    // Попадание!
+                    target.health -= weapons[currentWeapon].damage;
+                    
+                    if (target.health <= 0) {
+                        // Мишень уничтожена
+                        target.element.classList.add('hit');
+                        
+                        // Начисление очков и монет
+                        score += 10;
+                        coins += 5;
+                        targetsHit++;
+                        
+                        // Удаление мишени через некоторое время
+                        setTimeout(() => {
+                            target.element.remove();
+                            targets.splice(i, 1);
+                            createTarget();
+                        }, 300);
+                    } else {
+                        // Мишень ранена, но не уничтожена
+                        target.element.style.opacity = target.health;
+                    }
+                    
+                    break;
+                }
+            }
+        }
+        
+        // Покупка оружия
+        function buyWeapon(weaponType) {
+            const weapon = weapons[weaponType];
+            
+            if (weapon.owned) {
+                // Оружие уже куплено, просто экипируем
+                equipWeapon(weaponType);
+                return;
+            }
+            
+            if (coins >= weapon.price) {
+                // Покупка оружия
+                coins -= weapon.price;
+                weapon.owned = true;
+                equipWeapon(weaponType);
+                showNotification(`Вы купили ${weapon.name}!`);
+            } else {
+                showNotification('Недостаточно монет!');
+            }
+        }
+        
+        // Экипировка оружия
+        function equipWeapon(weaponType) {
+            currentWeapon = weaponType;
+            const weapon = weapons[weaponType];
+            
+            // Обновление отображения оружия
+            weaponDisplay.querySelector('.weapon-display-icon').textContent = weapon.icon;
+            weaponDisplay.querySelector('.weapon-display-name').textContent = weapon.name;
+            
+            // Обновление выделения в магазине
+            document.querySelectorAll('.weapon-item').forEach(item => {
+                item.classList.remove('equipped');
+            });
+            document.querySelector(`.weapon-item[data-weapon="${weaponType}"]`).classList.add('equipped');
+        }
+        
+        // Показ уведомления
+        function showNotification(message) {
+            notification.textContent = message;
+            notification.classList.add('show');
+            
+            setTimeout(() => {
+                notification.classList.remove('show');
+            }, 2000);
+        }
+        
+        // Обновление статистики
+        function updateStats() {
+            scoreElement.textContent = score;
+            coinsElement.textContent = coins;
+            targetsHitElement.textContent = targetsHit;
+            
+            const accuracy = shotsFired > 0 ? Math.round((targetsHit / shotsFired) * 100) : 0;
+            accuracyElement.textContent = `${accuracy}%`;
+        }
+        
+        // Игровой цикл
+        function gameLoop() {
+            // Движение мишеней
+            for (let i = 0; i < targets.length; i++) {
+                const target = targets[i];
+                
+                // Обновление позиции
+                target.x += target.speedX;
+                target.y += target.speedY;
+                
+                // Проверка столкновения с границами
+                if (target.x <= 0 || target.x >= gameArea.offsetWidth - target.size) {
+                    target.speedX *= -1;
+                }
+                
+                if (target.y <= 0 || target.y >= gameArea.offsetHeight - target.size) {
+                    target.speedY *= -1;
+                }
+                
+                // Ограничение позиции в пределах игрового поля
+                target.x = Math.max(0, Math.min(gameArea.offsetWidth - target.size, target.x));
+                target.y = Math.max(0, Math.min(gameArea.offsetHeight - target.size, target.y));
+                
+                // Обновление позиции на экране
+                target.element.style.left = `${target.x}px`;
+                target.element.style.top = `${target.y}px`;
+            }
+        }
+        
+        // Запуск игры при загрузке страницы
+        window.onload = initGame;
+    </script>
+</body>
+</html>
